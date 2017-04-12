@@ -3,13 +3,14 @@
 
 # 0X01 数据包类型
 
-|包名|中文|功能|
-|--|
-|handshake|握手包|Slave向Controller发送一个握手包以建立连接|
-|heartbeat|心跳包|Slave每隔6秒向Controller发送一个心跳包以确认存活|
-|get_message|获取消息|Slave从Controller处获取消息|
-|submit_message|提交消息|Slave提交消息到Controller|
-|bye|退出请求|Slave申请退出集群|
+| 包名 | 中文 | 功能 |
+|------|--|--|
+| handshake | 握手包 | Slave向Controller发送一个握手包以建立连接 |
+| heartbeat | 心跳包 | Slave每隔6秒向Controller发送一个心跳包以确认存活 |
+| get_message | 获取消息 | Slave从Controller处获取消息 |
+| submit_message | 提交消息 | Slave提交消息到Controller |
+| bye | 退出请求 | Slave申请退出集群 |
+
 
 # 0X02 传递信息的格式
 在Slave和Controller之间共享信息是分布式框架的核心功能。现在实现的信息共享功能还很简陋，Slave端如果需要传递两条及以上数据时需要将数据用`####`形式分隔开，比如`hello####world`，然后Slave从Controller获取的数据是`hello\world\`格式的。当然，你也可以自己修改其中的分割方案或者采用二级Json的方案。
