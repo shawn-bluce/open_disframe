@@ -18,6 +18,9 @@ SERVER_SOCKET = None
 
 
 class Slave:
+    """
+    每个Slave实例化成一个对象
+    """
     def __init__(self, input_id):
         self.__id = input_id
         self.__hp = 15
@@ -38,34 +41,42 @@ class Slave:
         self.__hp = 0
 
 
-# 获取监听用的Socket
-# Socket由第一次调用时创建，以后直接获取值
 def get_server_socket() -> socket.socket:
+    """
+    获取监听用的Socket，由第一次调用时创建
+    :return: Socket
+    """
     global SERVER_SOCKET
     if SERVER_SOCKET is None:
         host = ''
         port = 4022
         addr = (host, port)
         SERVER_SOCKET = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        SERVER_SOCKET.bind(addr)
+        SERVER_SOCKET.bind(addr)    # 绑定地址和端口
         SERVER_SOCKET.listen(512)  # 最多允许多少连接
         return SERVER_SOCKET
     else:
         return SERVER_SOCKET
 
 
-# 关闭SERVER_SOCKET的连接
 def close_connection():
+    """
+    停止监听，关闭SERVER_SOCKET的连接
+    :return: 状态
+    """
     global SERVER_SOCKET
     if SERVER_SOCKET is None:
-        return True
+        pass
     else:
         SERVER_SOCKET.close()
-        return True
+    return True
 
 
-# 等待获取新的连接，返回两个值   连接的socket和message
 def get_connection() -> socket.socket and dict:
+    """
+    监听新的连接
+    :return: 返回新连接的socket和message
+    """
     global BSIZE
     global slave_socket
 
@@ -74,29 +85,38 @@ def get_connection() -> socket.socket and dict:
     slave_socket, slave_addr = server_socket.accept()
     # print('get connection')
     message = slave_socket.recv(BSIZE).decode('utf-8')
-    message = json.loads(message)
+    message = json.loads(message)   # 将消息解析成Json
     return slave_socket, message
 
 
-# 收到了一个handshake包
 def process_handshake_request(slave_id: str) -> bool:
+    """
+    收到了一个handshake包并处理
+    :param slave_id: 
+    :return: 状态
+    """
     global SLAVE_LOCK
     global SLAVE_LIST
 
     SLAVE_LOCK.acquire()
-    SLAVE_LIST.append(Slave(slave_id))
+    SLAVE_LIST.append(Slave(slave_id))  # 加到Slave列表中
     SLAVE_LOCK.release()
 
     print("get a handshake from: " + slave_id)
     return True
 
 
-# 收到了一个heartbeat包
 def process_heartbeat_request(slave_id: str) -> bool:
+    """
+    收到了一个heartbeat包并处理
+    :param slave_id: 
+    :return: 状态
+    """
     global SLAVE_LOCK
     global SLAVE_LIST
 
     SLAVE_LOCK.acquire()
+    # 给Slave恢复生命
     for slave in SLAVE_LIST:
         if slave.get_id() == slave_id:
             slave.hp_add()
@@ -106,38 +126,50 @@ def process_heartbeat_request(slave_id: str) -> bool:
     return True
 
 
-# 收到了一个submit_message包
-# 方法传入的参数为json格式的字符串，要使用json.loads(message_json)转成字典再逐个取出
 def process_submit_message_request(message_json: str) -> bool:
+    """
+    收到了一个submit_message包并处理
+    :param message_json: 消息列表，为json格式的字符串
+    :return: 状态
+    """
     global MESSAGE_LIST
 
-    recv_message_list = json.loads(message_json)
-    for key in recv_message_list:
+    recv_message_list = json.loads(message_json)    # 收到提交的消息
+    for key in recv_message_list:   # 将消息加到列表中
         MESSAGE_LIST.put(recv_message_list[key])
     return True
 
 
-# 收到了一个get_message包
 def process_get_message_request(slave_id: str, quantity: int) -> str:
+    """
+    收到了一个get_message包并处理
+    :param slave_id: SlaveID
+    :param quantity: 要获取的消息数量
+    :return: 返回Slave所需的数据
+    """
     global MESSAGE_LIST
 
-    message_dict = dict()
-    for i in range(quantity):
+    message_dict = dict() # 声明返回用的字典
+    for i in range(quantity):   # 取出数据放到字典中
         if not MESSAGE_LIST.empty():
             message_dict["message" + str(i)] = MESSAGE_LIST.get(timeout=0.1)
         else:
             if len(message_dict) == 0:
                 return json.dumps('null')
-    return json.dumps(message_dict)
+    return json.dumps(message_dict) # 将字典转成Json并返回
 
 
-# 收到了一个exit包
 def process_exit_request(slave_id: str) -> bool:
+    """
+    收到了一个exit包，并Slave踢出
+    :param slave_id: SlaveID
+    :return: 状态
+    """
     global SLAVE_LOCK
     global SLAVE_LIST
 
     SLAVE_LOCK.acquire()
-    for slave in SLAVE_LIST:
+    for slave in SLAVE_LIST:    # 杀掉申请退出的Slave
         if slave.get_id() == slave_id:
             slave.kill()
             print("a slave will died: " + slave_id)
@@ -147,9 +179,12 @@ def process_exit_request(slave_id: str) -> bool:
     return True
 
 
-# 对集群进行实时监控
-# 每六秒扫视一遍整个集群，将死掉的Slave踢出
 def monitor_spider():
+    """
+    对集群进行实时监控
+    每六秒扫视一遍整个集群，将死掉的Slave踢出
+    :return: 监控没有返回值
+    """
     global SLAVE_LOCK
     global SLAVE_LIST
 
@@ -165,15 +200,14 @@ def monitor_spider():
                 slave = SLAVE_LIST[index]
                 if slave.is_died():
                     print("a slave is died: " + slave.get_id())
-                    del SLAVE_LIST[index]
+                    del SLAVE_LIST[index]   # 删除死掉的Slave
                     flag = False
                     break
                 else:
-                    slave.hp_less(6)
+                    slave.hp_less(6)    # 生命值减少6
             if flag:
                 break
         SLAVE_LOCK.release()
-
 
 if __name__ == '__main__':
     get_server_socket()   # 初始化连接
